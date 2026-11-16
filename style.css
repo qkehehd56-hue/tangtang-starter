@@ -68,6 +68,8 @@ body {
   top: 0;
   left: 0;
   right: 0;
+  max-width: 620px;
+  margin: 0 auto;
   padding: calc(var(--safe-t) + 10px) calc(var(--safe-r) + 14px) 0
     calc(var(--safe-l) + 14px);
   pointer-events: none;
