@@ -143,10 +143,18 @@
     joyMove(e);
   }, { passive: false });
 
-  ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => {
+  ['pointerup', 'pointercancel'].forEach((t) => {
     canvas.addEventListener(t, (e) => {
       if (e.pointerId === input.id) joyEnd();
     });
+  });
+
+  // 캔버스 밖에서 손을 때도 조이스틱이 확실히 풀리도록
+  window.addEventListener('pointerup', (e) => {
+    if (input.active && e.pointerId === input.id) joyEnd();
+  });
+  window.addEventListener('pointercancel', (e) => {
+    if (input.active && e.pointerId === input.id) joyEnd();
   });
 
   window.addEventListener('keydown', (e) => {
@@ -234,7 +242,7 @@
     bulletSeq = 0;
     game = {
       time: 0, kills: 0, wave: 1,
-      spawnT: 0.7, eliteT: 15, bossT: 60, bossCount: 0,
+      spawnT: 0.7, eliteT: 18, bossT: 60, bossCount: 0,
       pendingLevels: 0, toast: null, shake: 0,
     };
     UPGRADES.forEach((u) => { u.level = 0; });
@@ -606,7 +614,7 @@
   /* ── 플레이어 피해 ────────────────────────────────────────────────── */
   function hurtPlayer(dmg) {
     player.hp -= dmg;
-    player.invln = 0.55;
+    player.invln = 0.65;
     player.flash = 0.22;
     game.shake = Math.min(14, 6 + dmg * 0.3);
     if (player.hp <= 0) {
