@@ -63,6 +63,8 @@
   let VW = 390;
   let VH = 780;
   let DPR = 1;
+  let S = 1;          // 화면 크기에 맞춘 게임 오브젝트 배율
+  let aimRange = 320; // 자동 조준 사거리(화면 안에서만 쏘도록 계산)
 
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -71,6 +73,11 @@
     canvas.width = Math.max(1, Math.round(VW * DPR));
     canvas.height = Math.max(1, Math.round(VH * DPR));
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+    // 폰(390px 안팎)을 기준으로, 큰 화면에서는 오브젝트를 함께 키웁니다.
+    S = clamp(Math.min(VW, VH) / 430, 0.95, 1.45);
+    // 사거리는 "화면에 보이는 범위"에 맞춰 고정: 멀리 있는 적을 화면 밖에서 저격하지 않도록.
+    aimRange = clamp(Math.min(VW, VH) * 0.8, 250, 600);
   }
 
   /* ── 입력 (드래그 조이스틱 + 키보드) ───────────────────────────────── */
@@ -213,11 +220,11 @@
   /* ── 초기화 ───────────────────────────────────────────────────────── */
   function resetGame() {
     player = {
-      x: 0, y: 0, r: 14, aim: -Math.PI / 2,
-      speed: 195, hp: 100, maxHp: 100,
-      fireRate: 2.5, fireCd: 0, damage: 9, bulletSpeed: 640,
-      bulletCount: 1, bulletSize: 4.2, pierce: 0,
-      pickup: 82, regen: 0, orbCount: 0, orbAngle: 0,
+      x: 0, y: 0, r: 14 * S, aim: -Math.PI / 2,
+      speed: 195 * S, hp: 100, maxHp: 100,
+      fireRate: 2.5, fireCd: 0, damage: 9, bulletSpeed: 620 * S,
+      bulletCount: 1, bulletSize: 4.2 * S, pierce: 0,
+      pickup: 98 * S, regen: 0, orbCount: 0, orbAngle: 0,
       level: 1, xp: 0, xpNeed: 5, invln: 0, flash: 0,
     };
     enemies = [];
@@ -265,7 +272,7 @@
     if (player.regen > 0) player.hp = Math.min(player.maxHp, player.hp + player.regen * dt);
 
     // ── 자동 조준 + 사격
-    const target = nearestEnemy(player.x, player.y, 640);
+    const target = nearestEnemy(player.x, player.y, aimRange);
     if (target) player.aim = Math.atan2(target.y - player.y, target.x - player.x);
     player.fireCd -= dt;
     if (target && player.fireCd <= 0) {
@@ -316,8 +323,8 @@
     for (let i = 0; i < n; i++) {
       const a = player.aim + (i - (n - 1) / 2) * spread;
       bullets.push({
-        x: player.x + Math.cos(a) * 16,
-        y: player.y + Math.sin(a) * 16,
+        x: player.x + Math.cos(a) * 16 * S,
+        y: player.y + Math.sin(a) * 16 * S,
         vx: Math.cos(a) * player.bulletSpeed,
         vy: Math.sin(a) * player.bulletSpeed,
         r: player.bulletSize, dmg: player.damage,
@@ -375,14 +382,14 @@
     const hpMul = 1 + t * 0.019 + Math.pow(t / 60, 1.6) * 0.14;
     const spMul = 1 + Math.min(0.35, t * 0.0018);
     const ang = rand(0, TAU);
-    const rad = Math.hypot(VW, VH) / 2 + 70;
+    const rad = Math.max(VW, VH) * 0.5 + 60;   // 항상 화면 밖에서 등장
     const hp = c.hp * hpMul;
     enemies.push({
       type,
       x: player.x + Math.cos(ang) * rad,
       y: player.y + Math.sin(ang) * rad,
-      r: c.r, hp, maxHp: hp,
-      speed: c.speed * spMul, dmg: c.dmg,
+      r: c.r * S, hp, maxHp: hp,
+      speed: c.speed * spMul * S, dmg: c.dmg,
       ang: 0, flash: 0, orbCd: 0, dead: false, lastHit: -1,
     });
   }
@@ -478,9 +485,10 @@
       x: e.x, y: e.y,
       vx: rand(-50, 50), vy: rand(-50, 50),
       val: c.xp,
-      r: e.type === 'boss' ? 9 : e.type === 'elite' ? 6 : 4.5,
+      r: (e.type === 'boss' ? 9 : e.type === 'elite' ? 6 : 4.5) * S,
       spin: rand(0, TAU),
     });
+    if (gems.length > 500) gems.shift();   // 젬이 무한히 쌓이지 않도록
     burst(e.x, e.y, c.color, e.type === 'boss' ? 30 : e.type === 'elite' ? 14 : 7);
     if (e.type === 'boss') {
       game.shake = 16;
@@ -492,7 +500,7 @@
   function updateOrbs(dt) {
     if (!player.orbCount) return;
     player.orbAngle += dt * 2.4;
-    const orbitR = 62;
+    const orbitR = 62 * S;
 
     for (let k = 0; k < player.orbCount; k++) {
       const a = player.orbAngle + (TAU * k) / player.orbCount;
@@ -502,7 +510,7 @@
       for (let i = 0; i < enemies.length; i++) {
         const e = enemies[i];
         if (e.dead || e.orbCd > 0) continue;
-        const rr = e.r + 11;
+        const rr = e.r + 11 * S;
         if (dist2(ox, oy, e.x, e.y) < rr * rr) {
           e.orbCd = 0.35;
           damageEnemy(e, 13 + player.level * 1.6);
@@ -790,17 +798,17 @@
 
   function drawOrbs() {
     if (!player.orbCount) return;
-    const orbitR = 62;
+    const orbitR = 62 * S;
     for (let k = 0; k < player.orbCount; k++) {
       const a = player.orbAngle + (TAU * k) / player.orbCount;
       const ox = player.x + Math.cos(a) * orbitR;
       const oy = player.y + Math.sin(a) * orbitR;
       ctx.beginPath();
-      ctx.arc(ox, oy, 13, 0, TAU);
+      ctx.arc(ox, oy, 13 * S, 0, TAU);
       ctx.fillStyle = 'rgba(124, 240, 198, 0.18)';
       ctx.fill();
       ctx.beginPath();
-      ctx.arc(ox, oy, 6.5, 0, TAU);
+      ctx.arc(ox, oy, 6.5 * S, 0, TAU);
       ctx.fillStyle = '#7cf0c6';
       ctx.fill();
     }
@@ -974,7 +982,7 @@
         break;
       case 'pierce': player.pierce += 1; break;
       case 'size':
-        player.bulletSize += 1.2;
+        player.bulletSize += 1.2 * S;
         player.damage *= 1.1;
         break;
       case 'regen': player.regen += 1; break;
@@ -1003,6 +1011,8 @@
   /* ── 화면 전환 ───────────────────────────────────────────────────── */
   function startGame() {
     resetGame();
+    // 시작 직후 빈 화면이 길지 않도록 첫 적 3마리를 미리 불러 둡니다.
+    for (let i = 0; i < 3; i++) spawnEnemy('grunt');
     ui.title.classList.add('hidden');
     ui.over.classList.add('hidden');
     ui.levelup.classList.add('hidden');
